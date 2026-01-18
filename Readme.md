@@ -7,7 +7,7 @@ A hierarchical retrieval framework for molecular melting point prediction that a
 
 ---
 
-## 🎯 Key Results
+##  Key Results
 
 | Metric | Value |
 |--------|-------|
@@ -18,7 +18,7 @@ A hierarchical retrieval framework for molecular melting point prediction that a
 
 ---
 
-## 📊 Performance Evolution
+##  Performance Evolution
 
 ![Version Evolution](figures/paper/fig1_version_evolution.png)
 
@@ -26,7 +26,7 @@ A hierarchical retrieval framework for molecular melting point prediction that a
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ### Prediction Hierarchy
 
@@ -62,7 +62,7 @@ Query SMILES
 
 ---
 
-## 📈 Calibrated Neighborhood Uncertainty (CNU)
+##  Calibrated Neighborhood Uncertainty (CNU)
 
 Our key theoretical contribution is a **first-principles uncertainty functional** derived from retrieval geometry.
 
@@ -113,7 +113,7 @@ Weights `w ≥ 0` are learned via NNLS, enforcing monotonicity.
 
 ---
 
-## 📁 Data Sources
+##  Data Sources
 
 | Source | Molecules | Description |
 |--------|-----------|-------------|
@@ -126,7 +126,7 @@ Weights `w ≥ 0` are learned via NNLS, enforcing monotonicity.
 
 ---
 
-## 🔧 Installation
+##  Installation
 
 ```bash
 # Clone repository
@@ -151,7 +151,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ```python
 from src.models.hierarchical_mp_v8 import HierarchicalMPPredictorV8
@@ -175,7 +175,7 @@ print(f"Uncertainty score: {result['uncertainty_score']:.3f}")
 
 ---
 
-## 📂 Project Structure
+##  Project Structure
 
 ```
 ├── src/
@@ -197,7 +197,7 @@ print(f"Uncertainty score: {result['uncertainty_score']:.3f}")
 
 ---
 
-## 📊 Comparison with Deep Learning
+##  Comparison with Deep Learning
 
 | Approach | MAE (K) | Note |
 |----------|---------|------|
@@ -210,7 +210,7 @@ Deep learning underperforms due to limited training data (2.6k samples) and lack
 
 ---
 
-## 📄 Two Evaluation Regimes
+##  Two Evaluation Regimes
 
 We evaluate under two complementary regimes:
 
@@ -220,7 +220,7 @@ We evaluate under two complementary regimes:
 
 ---
 
-## 📊 Calibration Analysis
+##  Calibration Analysis
 
 ![Calibration Analysis](figures/paper/fig4_calibration_analysis.png)
 
@@ -228,7 +228,7 @@ We evaluate under two complementary regimes:
 
 ---
 
-## 🧪 Version Evolution
+##  Version Evolution
 
 | Version | Exact Match | Throughput | Key Change |
 |---------|-------------|------------|------------|
@@ -242,30 +242,5 @@ We evaluate under two complementary regimes:
 
 ---
 
-## 📜 Citation
 
-If you use this work, please cite:
 
-```bibtex
-@article{hierarchicalmp2024,
-  title={HierarchicalMP: Hierarchical Retrieval with Calibrated Neighborhood Uncertainty for Molecular Property Prediction},
-  author={[Author]},
-  year={2024}
-}
-```
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Syracuse Melting Point Database
-- Jean-Claude Bradley Open Melting Point Dataset
-- Kaggle Competition organizers
-- FAISS team at Meta AI
-- RDKit community
