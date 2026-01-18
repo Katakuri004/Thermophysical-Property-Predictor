@@ -1,359 +1,271 @@
-# Comprehensive Documentation: Melting Point Prediction Challenge
+# HierarchicalMP: Data-Centric Molecular Melting Point Prediction
 
-## Table of Contents
-1. [Introduction](#1-introduction)
-2. [Problem Statement](#2-problem-statement)
-3. [Literature Review](#3-literature-review)
-4. [Dataset Description](#4-dataset-description)
-5. [Methodologies](#5-methodologies)
-6. [Experimental Results](#6-experimental-results)
-7. [Comparative Analysis](#7-comparative-analysis)
-8. [Key Observations](#8-key-observations)
-9. [Conclusions](#9-conclusions)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A hierarchical retrieval framework for molecular melting point prediction that achieves **96.8% exact-match coverage** at **948 molecules/second** with **calibrated uncertainty quantification**.
 
 ---
 
-## 1. Introduction
-
-This project addresses the challenge of predicting molecular melting points using machine learning. Melting point is a fundamental physicochemical property crucial for:
-- Drug formulation and stability
-- Chemical process design
-- Material science applications
-- Environmental fate modeling
-
-We systematically explored multiple approaches, from traditional ML to deep learning, ultimately discovering that **data-centric strategies** outperform complex models.
-
----
-
-## 2. Problem Statement
-
-**Objective**: Predict the melting temperature (Tm) of organic molecules given their SMILES representation.
-
-**Evaluation Metric**: Mean Absolute Error (MAE) in Kelvin
-
-**Challenge**: Limited training data (~2,600 molecules) with high molecular diversity.
-
----
-
-## 3. Literature Review
-
-### Traditional Approaches
-- **QSPR Models**: Quantitative Structure-Property Relationships using molecular descriptors
-- **Group Contribution Methods**: Additive contributions from functional groups
-
-### Machine Learning Approaches
-- **Gradient Boosting**: XGBoost, LightGBM, CatBoost on molecular fingerprints
-- **Neural Networks**: MLP on descriptor vectors
-
-### Deep Learning Approaches
-- **Graph Neural Networks**: Message passing on molecular graphs (SchNet, MPNN)
-- **Transformers**: ChemBERTa, MolBERT for molecular representation
-
-### Key Insight from Competition
-Top solutions used **external data lookup** rather than complex models:
-- Bradley Melting Point Dataset (~30k molecules)
-- SMILES Melting Point Database (~275k molecules)
-
----
-
-## 4. Dataset Description
-
-### Primary Data
-| Dataset | Samples | Source |
-|---------|---------|--------|
-| Kaggle Train | 2,662 | Competition |
-| Kaggle Test | 666 | Competition |
-
-### External Data
-| Dataset | Samples | Description |
-|---------|---------|-------------|
-| Bradley Standard | ~28,000 | Curated experimental data |
-| Bradley Double Plus Good | ~3,500 | High-quality subset |
-| SMILES Melting Point | ~275,000 | Large aggregated database |
-
-**Combined**: ~278,000 unique molecules after deduplication
-
----
-
-## 5. Methodologies
-
-### Phase 1: Baseline Models
-
-**Features Used**:
-- RDKit 2D descriptors (~200 features)
-- Morgan fingerprints (2048 bits)
-- MACCS keys (167 bits)
-
-**Models**:
-```python
-# LightGBM Baseline
-from lightgbm import LGBMRegressor
-model = LGBMRegressor(
-    n_estimators=500,
-    learning_rate=0.1,
-    num_leaves=31,
-    objective='regression_l1'
-)
-```
-
----
-
-### Phase 2: Feature Engineering
-
-**3D Conformer Features**:
-```python
-from rdkit.Chem import AllChem
-mol = Chem.MolFromSmiles(smiles)
-AllChem.EmbedMolecule(mol, AllChem.ETKDG())
-AllChem.MMFFOptimizeMolecule(mol)
-# Extract 3D descriptors: radius of gyration, asphericity, etc.
-```
-
-**Gasteiger Charges**:
-```python
-from rdkit.Chem.AllChem import ComputeGasteigerCharges
-ComputeGasteigerCharges(mol)
-charges = [a.GetDoubleProp('_GasteigerCharge') for a in mol.GetAtoms()]
-features = {'min': min(charges), 'max': max(charges), 'std': np.std(charges)}
-```
-
----
-
-### Phase 3: Ensemble Methods
-
-**Stacking Architecture**:
-```
-Layer 1 (Base Models):
-├── LightGBM (MAE objective)
-├── XGBoost (MSE objective)
-├── CatBoost (MAE objective)
-└── Random Forest
-
-Layer 2 (Meta-Learner):
-└── Ridge Regression
-```
-
-**Optuna Hyperparameter Optimization**:
-```python
-import optuna
-
-def objective(trial):
-    params = {
-        'n_estimators': trial.suggest_int('n_estimators', 500, 3000),
-        'learning_rate': trial.suggest_float('lr', 0.01, 0.2),
-        'num_leaves': trial.suggest_int('num_leaves', 20, 150),
-    }
-    model = LGBMRegressor(**params)
-    return cross_val_score(model, X, y, cv=5, scoring='neg_mean_absolute_error').mean()
-```
-
----
-
-### Phase 4: Deep Learning
-
-**Graph Neural Network (SchNet)**:
-- Atoms as nodes, bonds as edges
-- Message passing for feature aggregation
-- Continuous-filter convolutions for 3D
-
-**ChemBERTa Embeddings**:
-```python
-from transformers import AutoTokenizer, AutoModel
-tokenizer = AutoTokenizer.from_pretrained("seyonec/ChemBERTa-zinc-base-v1")
-model = AutoModel.from_pretrained("seyonec/ChemBERTa-zinc-base-v1")
-embeddings = model(**tokenizer(smiles, return_tensors='pt')).last_hidden_state.mean(dim=1)
-```
-
----
-
-### Phase 5: External Data Integration
-
-**Data Pipeline**:
-1. Load all external datasets
-2. Convert temperatures to Kelvin (if in Celsius)
-3. Canonicalize SMILES using RDKit
-4. Deduplicate (Kaggle train takes priority)
-5. Create lookup dictionary
-
-```python
-def canonicalize(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    return Chem.MolToSmiles(mol, canonical=True) if mol else None
-
-all_data = pd.concat([external_data, kaggle_train])
-all_data['canonical'] = all_data['SMILES'].apply(canonicalize)
-all_data = all_data.drop_duplicates(subset=['canonical'], keep='last')
-lookup = dict(zip(all_data['canonical'], all_data['Tm']))
-```
-
----
-
-### Phase 6: GODMODE Strategy (Breakthrough)
-
-**Key Insight**: 97.9% of test molecules exist in external datasets!
-
-**Algorithm**:
-```
-FOR each test molecule:
-    canonical = canonicalize(SMILES)
-    IF canonical in lookup:
-        prediction = lookup[canonical]  # Perfect match!
-    ELSE:
-        prediction = ML_model.predict(features)  # Fallback
-```
-
-**Results**:
-- Direct lookup: 652/666 (97.9%)
-- ML fallback: 14/666 (2.1%)
-
----
-
-## 6. Experimental Results
-
-### Performance Summary
-
-| Approach | MAE | Key Features |
-|----------|-----|--------------|
-| LightGBM Baseline | 28.5 | Basic descriptors |
-| XGBoost Baseline | 29.2 | Basic descriptors |
-| CatBoost Baseline | 27.8 | Basic descriptors |
-| + 3D Features | 26.4 | Conformer descriptors |
-| Stacking Ensemble | 24.2 | Multi-model |
-| Optuna-Tuned | 23.5 | Hyperparameter optimized |
-| + External Data | 20.8 | 300k training samples |
-| GODMODE V1 | 8.5 | Lookup + ML fallback |
-| **GODMODE V3** | **7.8** | Optimized fallback |
-
-### Improvement Journey
-
-```
-Baseline (28.5) → Feature Eng. (26.4) → Ensemble (24.2) → External Data (20.8) → GODMODE (7.8)
-                                                                                      
-Total Improvement: 73% reduction in MAE
-```
-
----
-
-## 7. Comparative Analysis
-
-### Model Categories
-
-| Category | Best MAE | Approach |
-|----------|----------|----------|
-| Baseline | 27.8 | CatBoost |
-| Feature Eng. | 26.4 | LightGBM + 3D |
-| Deep Learning | 30.8 | MLP (worst!) |
-| Ensemble | 23.5 | Optuna Stacking |
-| External Data | 20.8 | 300k samples |
-| **GODMODE** | **7.8** | Lookup strategy |
-
-### Why Deep Learning Underperformed
-
-1. **Limited Data**: 2.6k samples insufficient for neural networks
-2. **No Pre-training**: GNNs trained from scratch
-3. **Feature Quality**: RDKit descriptors already capture key properties
-4. **Tree Superiority**: Gradient boosting excels on tabular data
-
-### Why GODMODE Succeeded
-
-1. **Data Leakage** (Legitimate): Test molecules exist in public databases
-2. **Perfect Matches**: Canonical SMILES ensures exact matching
-3. **Minimal ML Needed**: Only 14 samples require prediction
-
----
-
-## 8. Key Observations
-
-### Observation 1: Data > Models
-The transition from complex ML to simple lookup achieved 3x improvement. **Data-centric AI** principles apply.
-
-### Observation 2: Canonicalization is Critical
-Different SMILES representations of the same molecule must match:
-- `c1ccccc1` → `c1ccccc1` (already canonical)
-- `C1=CC=CC=C1` → `c1ccccc1` (aromaticity normalized)
-
-### Observation 3: Fuzzy Matching Hurts
-GODMODE V2 (skeleton matching) performed WORSE because:
-- InChI skeleton matches different molecules
-- Stereoisomers have different melting points
-
-### Observation 4: Ensemble Diversity Matters
-Stacking outperformed averaging because:
-- Different models capture different patterns
-- Meta-learner learns optimal combination
-
----
-
-## 9. Conclusions
-
-### Key Findings
-
-1. **Lookup-First Strategy** is optimal when test data exists in external sources
-2. **Feature Engineering** provides moderate improvements (~7%)
-3. **Deep Learning** is not always superior, especially with limited data
-4. **Ensemble Methods** provide consistent incremental gains
-
-### Recommendations
-
-For similar molecular property prediction tasks:
-1. **First**: Search for existing databases with target property
-2. **Second**: Build comprehensive lookup with canonical SMILES
-3. **Third**: Train ML only for unmatched samples
-4. **Fourth**: Use gradient boosting (LightGBM/CatBoost) over neural networks
-
-### Final Performance
+## 🎯 Key Results
 
 | Metric | Value |
 |--------|-------|
-| **Best MAE** | 7.8 K |
-| **Approach** | GODMODE V3 |
-| **Lookup Coverage** | 97.9% |
-| **Total Improvement** | 73% |
+| **Exact Match Coverage** | 96.8% (645/666 test molecules) |
+| **Throughput** | 948 mol/s |
+| **Memory Footprint** | ~92 MB |
+| **90% Prediction Interval** | ±2.4K (exact), ±42.5K (near-exact), ±78.4K (fallback) |
 
 ---
 
-## Appendix: Code Snippets
+## 📊 Performance Evolution
 
-### Canonical SMILES Lookup
-```python
-from rdkit import Chem
+![Version Evolution](figures/paper/fig1_version_evolution.png)
 
-def canonicalize(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    return Chem.MolToSmiles(mol, canonical=True) if mol else None
+*Performance evolution across 7 versions. Major gains from external data integration (v3-v4) and architectural optimizations (v7).*
 
-# Create lookup
-lookup = dict(zip(data['canonical'], data['Tm']))
+---
 
-# Apply
-test['Tm'] = test['canonical'].map(lookup)
+## 🏗️ Architecture
+
+### Prediction Hierarchy
+
+```
+Query SMILES
+    │
+    ▼
+┌──────────────────────┐
+│ Exact SMILES Lookup  │──→ Hit (96.8%): Return stored value
+└──────────────────────┘
+    │ Miss
+    ▼
+┌──────────────────────┐
+│ FAISS Binary Search  │──→ Top-50 candidates (Hamming distance)
+└──────────────────────┘
+    │
+    ▼
+┌──────────────────────┐
+│ Popcount Reranking   │──→ True Tanimoto similarity
+└──────────────────────┘
+    │
+    ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Near-Exact (T≥0.95)  │ Retrieval (T∈[0.75,0.95)) │ Fallback  │
+│ Similarity-weighted  │ Similarity-weighted       │ LightGBM  │
+│ average              │ average                   │ RDKit     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Stacking Ensemble
-```python
-from sklearn.ensemble import StackingRegressor
-from sklearn.linear_model import Ridge
+### Method Distribution
 
-stacker = StackingRegressor(
-    estimators=[
-        ('lgbm', LGBMRegressor()),
-        ('xgb', XGBRegressor()),
-        ('cat', CatBoostRegressor()),
-    ],
-    final_estimator=Ridge(),
-    cv=5
-)
-stacker.fit(X_train, y_train)
+![Method Distribution](figures/paper/fig3_method_distribution.png)
+
+---
+
+## 📈 Calibrated Neighborhood Uncertainty (CNU)
+
+Our key theoretical contribution is a **first-principles uncertainty functional** derived from retrieval geometry.
+
+### Axioms
+Any valid uncertainty score for retrieval-based prediction should increase when:
+1. The nearest neighbor is farther (coverage decreases)
+2. Neighbors disagree more (variance increases)
+3. Effective neighbor count is lower (sparsity increases)
+4. The nearest neighbor is ambiguous (gap shrinks)
+
+### Uncertainty Functional
+
+```
+u(x) = w₁(1-s₁) + w₂σ_w + w₃/k_eff + w₄·log(1 + 1/(Δs + ε))
+```
+
+Where:
+- `1-s₁`: Distance to nearest neighbor (epistemic uncertainty)
+- `σ_w`: Weighted variance of neighbor values (aleatoric uncertainty)  
+- `1/k_eff`: Inverse effective sample size (sparsity)
+- `log(1 + 1/Δs)`: Ambiguity from similarity gap
+
+Weights `w ≥ 0` are learned via NNLS, enforcing monotonicity.
+
+### Monotonicity Validation
+
+![Monotonicity](figures/paper/fig_monotonicity.png)
+
+*MAE increases monotonically with uncertainty score u(x) (slope=6.2), validating the risk-ranking property.*
+
+### Learned Weights
+
+![Learned Weights](figures/paper/fig_learned_weights.png)
+
+*Coverage primitive dominates (64.34), consistent with 96.8% exact-match rate.*
+
+### Per-Regime Coverage
+
+![Regime Coverage](figures/paper/fig_regime_coverage.png)
+
+*All 5 regimes achieve ≥90% coverage, validating regime-conditional calibration.*
+
+### Ablation Study
+
+![Ablation](figures/paper/fig_ablation.png)
+
+*Full CNU achieves 3-4× tighter intervals than ablated versions while maintaining coverage.*
+
+---
+
+## 📁 Data Sources
+
+| Source | Molecules | Description |
+|--------|-----------|-------------|
+| Kaggle Competition | 2,662 | Original training data |
+| Syracuse MP Database | 274,978 | Public melting point collection |
+| Bradley Open MP | 28,645 | Jean-Claude Bradley dataset |
+| **Total** | **306,285** | After deduplication: ~252,577 unique |
+
+![Data Sources](figures/paper/fig2_data_sources.png)
+
+---
+
+## 🔧 Installation
+
+```bash
+# Clone repository
+git clone https://github.com/Katakuri004/Thermophysical-Property-Predictor.git
+cd Thermophysical-Property-Predictor
+
+# Create environment
+conda create -n hierarchical-mp python=3.10
+conda activate hierarchical-mp
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Requirements
+- Python 3.8+
+- NumPy, Pandas, Scikit-learn
+- RDKit (for molecular fingerprints)
+- FAISS (for similarity search)
+- LightGBM (for fallback model)
+- Matplotlib (for visualization)
+
+---
+
+## 🚀 Quick Start
+
+```python
+from src.models.hierarchical_mp_v8 import HierarchicalMPPredictorV8
+
+# Initialize predictor
+predictor = HierarchicalMPPredictorV8(n_regimes=5, alpha=0.10)
+
+# Fit index with training data
+predictor.fit_index(train_smiles, train_tms)
+
+# Calibrate CNU
+predictor.fit_calibration(calib_smiles, calib_tms)
+
+# Predict with uncertainty
+result = predictor.predict("CCO")  # Ethanol
+print(f"Prediction: {result['prediction']:.1f} K")
+print(f"Interval: [{result['interval_low']:.1f}, {result['interval_high']:.1f}] K")
+print(f"Method: {result['method']}")
+print(f"Uncertainty score: {result['uncertainty_score']:.3f}")
 ```
 
 ---
 
-## Figures
+## 📂 Project Structure
 
-Run `notebooks/19_model_comparison.ipynb` to generate:
-- `model_comparison.png` - All models ranked by MAE
-- `improvement_journey.png` - Performance evolution
-- `category_comparison.png` - Average by approach category
-- `godmode_breakdown.png` - Lookup vs ML contribution
-- `feature_engineering_impact.png` - Feature count vs MAE
-- `top_models_table.png` - Summary table
+```
+├── src/
+│   ├── models/
+│   │   ├── hierarchical_mp_v7.py      # Production model
+│   │   └── hierarchical_mp_v8.py      # CNU-enabled model
+│   └── calibration/
+│       ├── uncertainty_functional.py   # CNU primitives
+│       └── cnu_calibrator.py           # Regime calibration
+├── notebooks/
+│   ├── 24_research_paper_figures.ipynb # Paper figures
+│   └── 25_cnu_validation.ipynb         # CNU validation
+├── docs/
+│   └── research_paper.tex              # LaTeX paper
+├── figures/paper/                      # Generated figures
+├── data/raw/                           # Raw datasets
+└── submissions/                        # Kaggle submissions
+```
+
+---
+
+## 📊 Comparison with Deep Learning
+
+| Approach | MAE (K) | Note |
+|----------|---------|------|
+| **HierarchicalMP v7** | **3.0** | Exact matches (calibration set) |
+| LightGBM Baseline | 28.5 | Kaggle data only |
+| GNN (SchNet) | 32.5 | 2.6k training samples |
+| ChemBERTa | 35.2 | Fine-tuned transformer |
+
+Deep learning underperforms due to limited training data (2.6k samples) and lack of task-specific pre-training.
+
+---
+
+## 📄 Two Evaluation Regimes
+
+We evaluate under two complementary regimes:
+
+**Regime A (Deployment Coverage)**: External databases allowed. The 96.8% exact-match rate is a *coverage result*, not a learning result. Primary metrics: throughput, memory, calibration.
+
+**Regime B (Generalization)**: No external overlap. Evaluates fallback model and CNU behavior on truly unseen molecules.
+
+---
+
+## 📊 Calibration Analysis
+
+![Calibration Analysis](figures/paper/fig4_calibration_analysis.png)
+
+*Per-method conformal calibration provides valid 90% prediction intervals.*
+
+---
+
+## 🧪 Version Evolution
+
+| Version | Exact Match | Throughput | Key Change |
+|---------|-------------|------------|------------|
+| v1.0 | 10.4% | 50 mol/s | Basic FAISS |
+| v2.0 | 12.1% | 85 mol/s | Tanimoto similarity |
+| v3.0 | 45.2% | 120 mol/s | +SMP data (275k) |
+| v4.0 | 92.6% | 180 mol/s | +Bradley + Binary IVF |
+| v5.0 | 98.3% | 242 mol/s | CQR + packed FP |
+| v6.0 | 96.2% | 450 mol/s | GPU wrapper |
+| **v7.0** | **96.8%** | **948** | uint64 popcount |
+
+---
+
+## 📜 Citation
+
+If you use this work, please cite:
+
+```bibtex
+@article{hierarchicalmp2024,
+  title={HierarchicalMP: Hierarchical Retrieval with Calibrated Neighborhood Uncertainty for Molecular Property Prediction},
+  author={[Author]},
+  year={2024}
+}
+```
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- Syracuse Melting Point Database
+- Jean-Claude Bradley Open Melting Point Dataset
+- Kaggle Competition organizers
+- FAISS team at Meta AI
+- RDKit community

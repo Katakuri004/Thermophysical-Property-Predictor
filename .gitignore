@@ -1,2 +1,23 @@
 /docs
 /data
+
+# Large model files (exceed GitHub 100MB limit)
+/models/
+*.npy
+*.pkl
+*.index
+faiss.index
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+.venv/
+venv/

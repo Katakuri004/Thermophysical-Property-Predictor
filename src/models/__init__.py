@@ -1,5 +1,31 @@
-from .base import BaseModel
-from .tree_models import XGBoostModel, LightGBMModel, CatBoostModel
-from .neural_net import NeuralNetworkModel
-from .ensemble import StackingEnsemble, BlendingEnsemble
-from .gnn import GNNModel
+"""
+Models module - Melting Point Prediction
+"""
+
+from .hierarchical_mp import (
+    HierarchicalMPPredictor,
+    create_hierarchical_predictor
+)
+
+from .robust_mp import (
+    RobustMPPredictor,
+    ConformalCalibrator,
+    QuantileEnsemble,
+    SourceCalibrator,
+    PolymorphismRiskDetector,
+    EfficientEnsemble
+)
+
+__all__ = [
+    # HierarchicalMP
+    'HierarchicalMPPredictor',
+    'create_hierarchical_predictor',
+    
+    # RobustMP
+    'RobustMPPredictor',
+    'ConformalCalibrator',
+    'QuantileEnsemble',
+    'SourceCalibrator',
+    'PolymorphismRiskDetector',
+    'EfficientEnsemble',
+]
